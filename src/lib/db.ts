@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { Restaurant } from "@/entities/Restaurant"; 
+import { User} from "@/entities/User"
 
 export const AppDataSource = new DataSource({
   type: "mongodb",
@@ -10,7 +11,7 @@ export const AppDataSource = new DataSource({
   
   synchronize: true, 
   logging: true,
-  entities: [Restaurant],
+  entities: [Restaurant, User],
   
   // 💡 如果你使用的是 MongoDB Atlas，通常只需要 url 即可
   // 某些版本可能需要加這行來確保連線穩定

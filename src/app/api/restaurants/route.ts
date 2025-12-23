@@ -1,46 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { Restaurant } from "@/entities/Restaurant";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. 取得資料庫連線
+    // 1. 取得當前 Session
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ message: "請先登入" }, { status: 401 });
+    }
+
     const db = await getDb();
     const repo = db.getMongoRepository(Restaurant);
-
-    // 2. 解析前端傳來的資料
     const body = await req.json();
-    const { name, categories, address, location, userId } = body;
 
-    // 3. 建立並儲存實體
+    // 2. 建立餐廳，並綁定 session 中的 user id
     const newRestaurant = repo.create({
-      name,
-      categories,
-      address,
-      location: location || { lat: 0, lng: 0 }, // 第二階段會帶入真實經緯度
-      userId,
-      rating: 5,
+      ...body,
+      userId: (session.user as any).id, // 🚀 自動綁定登入者 ID
+      rating: body.rating || 5,
+      createdAt: new Date(),
     });
 
     await repo.save(newRestaurant);
-
-    return NextResponse.json({ message: "餐廳新增成功", data: newRestaurant }, { status: 201 });
+    return NextResponse.json(newRestaurant, { status: 201 });
   } catch (error) {
-    console.error("API Error:", error);
     return NextResponse.json({ message: "新增失敗", error: String(error) }, { status: 500 });
   }
 }
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json([], { status: 401 });
+
     const db = await getDb();
     const repo = db.getMongoRepository(Restaurant);
-    
-    // 取得所有餐廳 (之後會加上 .find({ where: { userId } }))
-    const restaurants = await repo.find();
-    
+
+    // 3. 唯有屬於該使用者的餐廳才會被撈出來
+    const restaurants = await repo.find({
+      where: { userId: (session.user as any).id }
+    });
+
     return NextResponse.json(restaurants);
   } catch (error) {
-    return NextResponse.json({ message: "讀取失敗", error: String(error) }, { status: 500 });
+    return NextResponse.json({ message: "讀取失敗" }, { status: 500 });
   }
 }
